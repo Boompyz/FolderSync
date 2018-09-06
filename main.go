@@ -7,6 +7,16 @@ import (
 	"sort"
 )
 
+type fileQueueEntry struct {
+	sourceFile string
+	destFile   string
+	size       int64
+}
+
+var bytesToCopy int64
+var bytesCopied int64
+var filesToCopy []fileQueueEntry
+
 func errCheck(err error) {
 	if err != nil {
 		panic(err)
@@ -19,12 +29,28 @@ func sameFile(sourceFile, destFile os.FileInfo) bool {
 }
 
 // Copies a file
-func copyFile(sourceFile, destFile string) {
-	data, err := ioutil.ReadFile(sourceFile)
+func copyFile(fileEntry fileQueueEntry) {
+	fmt.Printf("Copying %v.\n", fileEntry)
+	fmt.Printf("Current progress: %v/%v  [%v%%].", bytesCopied, bytesToCopy, (bytesCopied / bytesToCopy))
+
+	data, err := ioutil.ReadFile(fileEntry.sourceFile)
 	errCheck(err)
 
-	err = ioutil.WriteFile(destFile, data, os.ModePerm)
+	err = ioutil.WriteFile(fileEntry.destFile, data, os.ModePerm)
 	errCheck(err)
+
+	bytesCopied += fileEntry.size
+}
+
+//Adds a file to the copy queue
+func copyFileQueue(sourceFile, destFile string) {
+	fileInfo, err := os.Stat(sourceFile)
+	errCheck(err)
+
+	newFileQueueEntry := fileQueueEntry{sourceFile, destFile, fileInfo.Size()}
+	bytesToCopy += newFileQueueEntry.size
+
+	filesToCopy = append(filesToCopy, newFileQueueEntry)
 }
 
 // Copies folder recursively
@@ -69,7 +95,7 @@ func syncFolders(sourceDir string, outDir string) {
 					os.Mkdir(newDest, os.ModePerm)
 					syncFolders(newSource, newDest)
 				} else {
-					copyFile(newSource, newDest)
+					copyFileQueue(newSource, newDest)
 				}
 
 				idxSource++
@@ -96,7 +122,7 @@ func syncFolders(sourceDir string, outDir string) {
 				// If Source if file an dist is folder
 				// delete Dest and copy the file
 				os.RemoveAll(newDest)
-				copyFile(newSource, newDest)
+				copyFileQueue(newSource, newDest)
 			} else if fileSoure.IsDir() && fileDest.IsDir() {
 				// If they are both folders, check inside
 				syncFolders(newSource, newDest)
@@ -105,7 +131,7 @@ func syncFolders(sourceDir string, outDir string) {
 				// if not, copy
 				if !sameFile(fileSoure, fileDest) {
 					os.Remove(newDest)
-					copyFile(newSource, newDest)
+					copyFileQueue(newSource, newDest)
 				}
 			}
 
@@ -123,8 +149,17 @@ func main() {
 		fmt.Println("foldersync <source> <dest>")
 		return
 	}
+
+	bytesToCopy = 0
+	filesToCopy = make([]fileQueueEntry, 0)
+
 	sourceDir := os.Args[1]
 	outDir := os.Args[2]
 
 	syncFolders(sourceDir, outDir)
+
+	fmt.Printf("Have to copy %v bytes (%v MB).\n", bytesToCopy, bytesToCopy/1000000)
+	for _, fileEntry := range filesToCopy {
+		copyFile(fileEntry)
+	}
 }
