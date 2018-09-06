@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
+	"sort"
 )
 
 func errCheck(err error) {
@@ -33,7 +35,10 @@ func syncFolders(sourceDir string, outDir string) {
 	filesDest, err := ioutil.ReadDir(outDir)
 	errCheck(err)
 
-	idxSource, idxDest := 1, 1
+	sort.Slice(filesSource, func(i, j int) bool { return filesSource[i].Name() < filesSource[j].Name() })
+	sort.Slice(filesDest, func(i, j int) bool { return filesDest[i].Name() < filesDest[j].Name() })
+
+	idxSource, idxDest := 0, 0
 
 	for idxSource < len(filesSource) || idxDest < len(filesDest) {
 		var nameSource, nameDest string
@@ -51,12 +56,13 @@ func syncFolders(sourceDir string, outDir string) {
 
 		newSource := sourceDir + "/" + nameSource
 		newDest := outDir + "/" + nameSource
+		oldDest := outDir + "/" + nameDest
 
 		// If they differ, check which one comes first
 		if nameSource != nameDest {
 			// If nameSource is smaller than nameDest, it is possible nameDest to exist in source files
 			// Copy the source to dest
-			if nameSource < nameDest || nameDest == "" {
+			if (nameSource < nameDest || nameDest == "") && nameSource != "" {
 
 				// If it is a dir, create and sync
 				if filesSource[idxSource].IsDir() {
@@ -69,9 +75,9 @@ func syncFolders(sourceDir string, outDir string) {
 				idxSource++
 			} else { // nameDest doesn't exists -> it shouldn't be there
 				if filesDest[idxDest].IsDir() {
-					os.RemoveAll(newDest)
+					os.RemoveAll(oldDest)
 				} else {
-					os.Remove(newDest)
+					os.Remove(oldDest)
 				}
 
 				idxDest++
@@ -103,11 +109,20 @@ func syncFolders(sourceDir string, outDir string) {
 				}
 			}
 
+			idxDest++
+			idxSource++
 		}
 	}
 }
 
 func main() {
+
+	if len(os.Args) < 3 {
+		fmt.Println("Not enough arguments!")
+		fmt.Println("Usage:")
+		fmt.Println("foldersync <source> <dest>")
+		return
+	}
 	sourceDir := os.Args[1]
 	outDir := os.Args[2]
 
