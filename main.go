@@ -30,8 +30,8 @@ func sameFile(sourceFile, destFile os.FileInfo) bool {
 
 // Copies a file
 func copyFile(fileEntry fileQueueEntry) {
+	fmt.Printf("Current progress: %vMB/%vMB  [%v%%].\t", bytesCopied/1000000, bytesToCopy/1000000, (bytesCopied * 100 / bytesToCopy))
 	fmt.Printf("Copying %v.\n", fileEntry)
-	fmt.Printf("Current progress: %v/%v  [%v%%].", bytesCopied, bytesToCopy, (bytesCopied / bytesToCopy))
 
 	data, err := ioutil.ReadFile(fileEntry.sourceFile)
 	errCheck(err)
